@@ -1,0 +1,432 @@
+<?php
+include('Controller.class');
+/*
+	AUTHOR: Harmster
+	WEBSITE: hawiak.nl
+	DATE_MODIFIED: 11/19/2013 (DD/MM/YYYY)
+*/
+
+class MvcModule extends Process implements Module, ConfigurableModule {
+	const PAGE_NAME = 'mvc-module';
+	const PERMISSION_NAME = 'mvc-module';
+	public $action = "";
+
+	public static function getModuleInfo(){
+		return array(
+			'title' => 'MVC',
+			'summary' => __('Module that enables MVC like programming'),
+			'autoload' => true,
+			'version' => 0.1.2,
+			'author' => 'Harmster',
+			'href' => '<Check later>'
+		);
+	}
+
+	public function init(){
+		
+		Wire::setFuel('mvc', $this);
+		$this->set('table', false); 
+        $this->set('thead', ''); 
+        $this->set('optionColumns', 0);
+        //config propertys
+        $this->snippets_path = $this->get('snippets_path');
+        $this->controllers_path = $this->get('controllers_path');
+        $this->default_layout = $this->get('default_layout');
+        $this->layouts_path = $this->get('layouts_path');
+        $this->views_path = $this->get('views_path');
+        $this->app_controller_path = $this->get('app_controller_path');
+        if($this->app_controller_path == "")
+        	$app_controller = $this->config->paths->root . $this->app_controller_path . 'site/templates/AppController.class';
+        else
+        	$app_controller = $this->config->paths->root . $this->app_controller_path . '/AppController.class';
+		include($app_controller);
+	}
+
+	static public function getModuleConfigInputfields(array $data){
+		//Controller root
+		//Views root
+		//Default layout
+		//Layout folder
+		$form = new InputfieldForm();
+		$form->attr('id', 'mvc-config');
+		$wrapper = new InputfieldWrapper();
+		$wrapper->label = "Configure Layouts";
+		$field = new InputfieldText();
+		$field->label = 'Default layout file (php file in your layouts folder)';
+		$field->attr('name+id', 'default_layout');
+		if(isset($data['default_layout']) ? $field->value = $data['default_layout'] : $field->value = "layout.php");
+		$wrapper->append($field);
+		$field = new InputfieldText();
+		$field->label = 'App Controller folder, where is the App Controller located';
+		$field->attr('name+id', 'app_controller_path');
+		if(isset($data['app_controller_path']) ? $field->value = $data['app_controller_path'] : $field->value = "site/templates");
+		$wrapper->append($field);
+		$form->append($wrapper);
+		$wrapper = new InputfieldWrapper();
+		$wrapper->label = "Configure file locations";
+		$field = new InputfieldText();
+		$field->label = "Layouts path";
+		$field->attr('name+id', 'layouts_path');
+		if(isset($data['layouts_path']) ? $field->value = $data['layouts_path'] : $field->value = "site/templates/layouts");
+		$wrapper->append($field);
+		$field = new InputfieldText();
+		$field->label = "Controllers path";
+		$field->attr('name+id', 'controllers_path');
+		if(isset($data['controllers_path']) ? $field->value = $data['controllers_path'] : $field->value = "site/templates");
+		$wrapper->append($field);
+		$field = new InputfieldText();
+		$field->label = "Snippets path";
+		$field->attr('name+id', 'snippets_path');
+		if(isset($data['snippets_path']) ? $field->value = $data['snippets_path'] : $field->value = "site/templates/snippets");
+		$wrapper->append($field);
+		$field = new InputfieldText();
+		$field->label = "Views path";
+		$field->attr('name+id', 'views_path');
+		if(isset($data['views_path']) ? $field->value = $data['views_path'] : $field->value = "site/templates");
+		$wrapper->append($field);
+		$form->append($wrapper);
+		$field = new InputfieldText();
+		$field->label = "Assets path";
+		$field->attr('name+id', 'assets_path');
+		if(isset($data['assets_path']) ? $field->value = $data['assets_path'] : $field->value = "site/templates/assets");
+		$wrapper->append($field);
+		$form->append($wrapper);
+		return $form;
+	}
+
+	public function ___install(){
+		$page = $this->pages->get('template=admin, name='.self::PAGE_NAME);
+		if(!$page->id){
+			$page = new Page();
+			$page->template = $this->templates->get('admin');
+			$page->parent = $this->pages->get($this->config->adminRootPageID);
+			$page->name = self::PAGE_NAME;
+			$page->title = 'MVC';
+			$page->process = $this;
+			$page->save();
+		}
+		$mvc_field = $this->fields->get('mvc');
+		if(!$mvc_field->id){
+			$mvc_field = new Field();
+			$mvc_field->name = 'mvc';
+			$mvc_field->label = 'MVC';
+			$mvc_field->description = 'Checkbox that enables MVC for a page';
+			$mvc_field->type = 'FieldtypeCheckbox';
+			$mvc_field->value = 1;
+			$mvc_field->save();
+		}
+
+		$permission = $this->permissions->get(self::PERMISSION_NAME);
+		if(!$permission->id){
+			$permission = new Permission();
+			$permission->name = self::PERMISSION_NAME;
+			$p->title = $this->_('Use the MVC module');
+		}
+	}
+
+	public function ___uninstall(){
+		$permission = $this->permissions->get(self::PERMISSION_NAME);
+		if($permission->id){
+			$permission->delete();
+		}
+		$page = $this->pages->get('template=admin, name='.self::PAGE_NAME);
+		if($page->id){
+			$page->delete();
+		}
+		$mvc_field = $this->fields->get('mvc');
+		if($mvc_field->id){
+			//$mvc_field->delete();
+		}
+	}
+	/*
+		Methods for this view
+	*/
+	public function execute(){
+		return $this->_renderIndex();
+	}
+
+	public function ___executenewController(){
+		return $this->_rendernewController();
+	}
+
+	public function ___executeviewController(){
+		return $this->_renderviewController();
+	}
+
+	public function ___executecreateView(){
+		return $this->_rendercreateView();
+	}
+	/*
+		Render methods for this view
+	*/
+	private function _renderIndex(){
+		$this->setFuel('processHeadline', 'MVC | index');
+
+		$controller_index = new InputfieldWrapper();
+		$field = new InputfieldMarkup();
+		$field->label = $this->_("Actions");
+		$field->columnWidth = 100;
+		$html = '<a class="button" href="newController">Create controller</a>';
+		$field->attr('value',$html);
+		$controller_index->append($field);
+		$field = new InputfieldMarkup();
+		$table = $this->modules->get("MarkupAdminDataTable"); 
+		$table->setEncodeEntities(false);
+		$header = array(
+			$this->_x('Controller', 'list-thead'),
+			$this->_x('Views', 'list-thead'));
+		$table->headerRow($header);
+		$field->label = $this->_("Controllers");
+		$controller_html = "";
+		foreach($this->templates as $t){
+			if($t->fields->get('mvc')){
+				$table->row(array('<a href="viewController?controller_name=' . $t->name . '">' . $t->name . '</a>', '0'));
+			}
+		}
+		$field->attr('value', $table->render());
+		$controller_index->append($field);
+		return $controller_index->render();
+	}
+
+	private function _rendernewController(){
+		$this->setFuel('processHeadline', 'MVC | index');
+		if($_SERVER['REQUEST_METHOD'] == 'POST'){
+			//TODO: add file/folder for the controller
+			$html = "";
+			$template_id = $this->sanitizer->selectorValue($this->input->post('template'));
+			$template = $this->templates->get($template_id);
+			$template->fields->add($this->fields->get('mvc'));
+			$template->fields->save();
+			$template->urlSegments = 1;
+			$template->save();
+			$path = $this->config->paths->templates . '/site/templates/';
+			$wrapper = new InputfieldWrapper();
+			$field = new InputfieldMarkup();
+			$field->label = _('Added controller for') . " " .$template->name;
+			$html .= _('Added MVC field to ' . $template->name) .'<br />';
+			$html .= _('Allowed urlSegments for ' .$template->name) . '<br />';
+			$html .= '';
+			$field->attr('value', $html);
+			$wrapper->append($field);
+			return $wrapper->render();
+		}else{
+			$new_controller_form = new InputfieldForm();
+			$new_controller_form->attr('method', 'post');
+			$new_controller_form->attr('action', '');
+			$controller_index = new InputfieldWrapper();
+			$field = new InputfieldMarkup();
+			$field->label = $this->_("Create new controller");
+			$field->columnWidth = 100;
+			$html = '<select name="template">';
+			foreach($this->templates as $t){
+				$html .= '<option value="' . $t->id . '">' . $t->name . '</option>';
+			}
+			$html .= '</select>';
+			$field->attr('value',$html);
+			$controller_index->append($field);
+			$submit = new InputfieldSubmit();
+			$submit->attr('class', 'button');
+			$submit->attr('value', 'Create');
+			$controller_index->append($submit);
+			$new_controller_form->append($controller_index);
+			return $new_controller_form->render();
+		}
+	}
+
+	public function _renderviewController(){
+		if(isset($this->input->get->controller_name)){
+			$controller_name = ucfirst($this->sanitizer->text($this->input->get->controller_name)).'Controller';
+			$controller_file = $this->sanitizer->text($this->input->get->controller_name);
+			if(file_exists($this->config->paths->root. $this->controllers_path . "/" . $controller_file . '.php')){
+				include($this->config->paths->root. $this->controllers_path . "/" . $controller_file . '.php');
+				if(class_exists(ucfirst($controller_name))){
+					$class = ucfirst($controller_name);
+					$parent_methods = get_class_methods($class);
+				    if($parent_class = get_parent_class($class)){
+				        $diff_methods = get_class_methods($parent_class);
+				        $child_methods = array_diff($parent_methods, $diff_methods);
+				    }else{
+				        $child_methods = $parent_methods;
+				    }
+				   	$table = $this->modules->get("MarkupAdminDataTable");
+				    $header = array(
+						$this->_x('View', 'list-thead'),
+						$this->_x('File', 'list-thead'),
+						$this->_x('Created', 'list-thead')
+					);
+					$table->headerRow($header);
+				    foreach($child_methods as $view){
+				    	$view_path = $this->config->paths->root . $this->views_path . "/" . ucfirst($controller_file) . '/' . $view . '.view';
+				    	if(file_exists($view_path)){
+				    		$view_exists = 'View created';
+				    	}else{
+				    		$view_exists = 'View does not exists';
+				    	}
+				    	$table->row(array($view, $view.'.view', $view_exists));
+				    }
+				    $wrapper = new InputfieldWrapper();
+				    $field = new InputfieldMarkup();
+				    $field->label = "Actions for " . $controller_name;
+				    $field->attr('value', '<a href="createView?controller_name=' . $controller_name . '">Create view</a>');
+				    $wrapper->append($field);
+				    $field = new InputfieldMarkup();
+				    $field->label = 'Views for ' . $controller_name;
+				    $field->attr('value', $table->render());
+				    $wrapper->append($field);
+				    return $wrapper->render();
+
+				}else{
+					return 'Controller doesn\'t exist';
+				}
+			}else{
+				return 'No controller file found for ' . $controller_name . " in " . $this->config->paths->root. $this->controllers_path;
+			}
+		}
+	}
+
+	private function _rendercreateView(){
+		if($_SERVER['REQUEST_METHOD'] == 'POST'){
+			$wrapper = new InputfieldWrapper();
+			//TODO: create view here
+			return $wrapper->render();
+		}else{
+			if(isset($this->input->get->controller_name)){
+				$form = new InputfieldForm();
+				$wrapper = new InputfieldWrapper();
+				$field = new InputfieldMarkup();
+				$field->label = "Create view";
+				$view_name = new InputfieldText();
+				$view_name->label = "View name:";
+				$field->append($view_name);
+				$wrapper->append($field);
+				$field = new InputfieldSubmit();
+				$field->attr('value', 'Create view');
+				$wrapper->append($field);
+				$form->append($wrapper);
+				return $form->render();
+			}else{
+				return 'Error, no controller in $_GET';
+			}
+		}
+		
+	}
+	/*
+		Set the action for the controller
+	*/
+	public function set_action($action='index'){
+		$this->action = $action;
+	}
+
+	public function set_view_root($view_root){
+		$this->view_root = $view_root;
+	}
+	/*
+		Sets the controllers layout to the default layout when left empty
+	*/
+	private function _set_controller_layout(){
+		if($this->controller->layout === NULL){
+			//Layout file is not set in the controller, we use the default layout file.
+			$this->controller->layout = $this->default_layout;
+		}
+	}
+	/*
+		Sets the controllers view to the action.view if not specified
+	*/
+	private function _set_render_view(){
+		if($this->controller->view === NULL){
+			$this->controller->view = $this->action . '.view';
+		}
+	}
+	private function _capture_output($file, $vars, $print = FALSE){
+		ob_start();
+	    if( is_readable($file) && $file ){
+	    	if(!empty($vars)){
+				extract($vars);
+			}
+	        include($file);
+	    }
+	    else{
+	        return FALSE;
+	    }
+
+	    if( $print == FALSE )
+	        return ob_get_clean();
+	    else
+	        echo ob_get_clean();
+	}
+	/*
+		Includes Layout file, extracts variables etc etc.
+	*/
+	public function render(){
+		
+		if(method_exists($this->controller, $this->action)){
+			$this->controller->{$this->action}();
+			$this->view_body = $this->render_view();
+		}else{
+			echo 'No action available';
+		}
+		if($this->controller->render_layout === 1){
+			$this->render_layout();
+		}
+	}
+	/*
+		Render the layout
+	*/
+	public function render_layout(){
+		$this->_set_controller_layout();
+		if(file_exists($this->config->paths->root . $this->layouts_path."/".$this->controller->layout)){
+			if(!empty($this->controller->layout_vars)){
+				extract($this->controller->layout_vars);
+			}
+			include($this->config->paths->root . $this->layouts_path."/".$this->controller->layout);
+		}else{
+			echo "Couldn't find the layout.";
+		}
+	}
+	/*
+		Render the view
+	*/
+	public function render_view(){
+		$this->_set_render_view();
+		if(file_exists($this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view)){
+			return $this->_capture_output($this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view, $this->controller->vars);
+		}else{
+			echo $this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view . ' nono';
+		}
+	}
+	/*
+		Rener a snippet
+	*/
+	public function render_snippet($snippet=NULL, $vars=array()){
+		if($snippet === NULL){
+			return 'Snippet is NULL';
+		}
+		if(file_exists($this->config->paths->root . $this->snippets_path .'/'.$snippet)){
+			if(!empty($vars)){
+				extract($vars);
+			}
+			include($this->config->paths->root . $this->snippets_path .'/'.$snippet);
+		}else{
+			return 'No snippet found.';
+		}
+	}
+	/*
+		Render html headers
+	*/
+	public function render_headers(){
+		if(!empty($this->controller->scripts)){
+			ksort($this->controller->scripts);
+			$html = '';
+			foreach($this->controller->scripts as $key => $src){
+				$html .= '<script type="text/javascript" src="' . $this->config->root . $this->assets_path . '/scripts/' . $src .'"></script>';
+			}
+			ksort($this->controller->styles);
+			foreach($this->controller->styles as $key => $src){
+				$html .= '<link rel="stylesheet" type="text/css" href="' . $this->config->root . $this->assets_path . '/styles/' . $src .'">';
+			}
+			return $html;
+		}else{
+			echo ' nope ';
+		}
+	}
+}

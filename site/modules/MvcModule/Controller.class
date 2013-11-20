@@ -1,0 +1,18 @@
+<?php
+class Controller extends Wire{
+	public $layout;
+	public $view;
+	public $vars = array();
+	public $render_layout = 1;
+	public $layout_vars = array();
+	public $scripts = array();
+	public $styles = array();
+
+	public function set($var, $val){
+		$this->vars[$var] = $val;
+	}
+
+	public function set_layout_var($var, $val){
+		$this->layout_vars[$var] = $val;
+	}
+}
