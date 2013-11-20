@@ -16,7 +16,7 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 			'title' => 'MVC',
 			'summary' => __('Module that enables MVC like programming'),
 			'autoload' => true,
-			'version' => 0.1.2,
+			'version' => 0.1,
 			'author' => 'Harmster',
 			'href' => '<Check later>'
 		);
