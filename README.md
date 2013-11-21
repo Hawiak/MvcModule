@@ -16,30 +16,30 @@ Download PWMvc at github: https://github.com/Hawiak/MvcModule
 
 Configure
 
-1) Drag/upload/add the /site/modules/MvcModule folder into your project's module folder.
-2) Search for new Modules
-3) Install MVC
-UyneNh9.png4) Press "Submit", this is important, without the submit your paths are not saved.
-5) Leave every textfield as it is for now, these are the defaults.
-6) Create 3 folders in your /site/templates folder and call them assets, snippets and layouts
-7) You are going to need a default layout file, just create a new php file in the folder layouts you just created called layout.php
-8) Place the AppController.class in your /site/templates
-9) Place the _create_mvc.php in your /site/templates
-10) Edit your /site/config.php and add the following line
-$config->appendTemplateFile = '_create_mvc.php';
+1) Drag/upload/add the /site/modules/MvcModule folder into your project's module folder.  
+2) Search for new Modules  
+3) Install MVC  
+UyneNh9.png4) Press "Submit", this is important, without the submit your paths are not saved.  
+5) Leave every textfield as it is for now, these are the defaults.  
+6) Create 3 folders in your /site/templates folder and call them assets, snippets and layouts  
+7) You are going to need a default layout file, just create a new php file in the folder layouts you just created called layout.php  
+8) Place the AppController.class in your /site/templates  
+9) Place the _create_mvc.php in your /site/templates  
+10) Edit your /site/config.php and add the following line  
+$config->appendTemplateFile = '_create_mvc.php';  
 
 
-Files, Folders and Fields
+Files, Folders and Fields  
 
-You might be wondering what you just installed. Here's a quickreference guide to the files:
+You might be wondering what you just installed. Here's a quickreference guide to the files:  
 
-FILE: AppController.class
+FILE: AppController.class  
 
-This is actually just an empty class and it can be used for things that are all the same over your website, so not controller reliable. For example a title that you want to append on each one of the controllers, or scripts or stylesheets you want to have all over your website.
+This is actually just an empty class and it can be used for things that are all the same over your website, so not controller reliable. For example a title that you want to append on each one of the controllers, or scripts or stylesheets you want to have all over your website.   
+  
+FILE: _create_mvc.php  
 
-FILE: _create_mvc.php
-
-This script sets up the MVC, it fetches the action, calls the methods. This script runs after EVERY template but only works if the template has an MVC field. 
+This script sets up the MVC, it fetches the action, calls the methods. This script runs after EVERY template but only works if the template has an MVC field.   
 
 FIELD: mvc
 
