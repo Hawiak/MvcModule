@@ -4,6 +4,12 @@ MvcModule
 Mvc Module for Processwire 2.3
 
 
+
+SEE http://processwire.com/talk/topic/4947-the-pw-mvc-project/  
+
+
+
+
 WORK IN PROGRESS PLEASE BE AWARE
 
 Processwire MVC by Harmster
