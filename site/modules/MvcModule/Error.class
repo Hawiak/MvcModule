@@ -1,0 +1,9 @@
+<?php
+class MvcError{
+
+	public function show($text, $action, $controller){
+		if(isset($text)){
+			throw new Exception("Error encountered " . $text . " for " . $action . " in controller " . $controller);
+		}
+	}
+}

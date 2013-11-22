@@ -10,12 +10,14 @@ if($this->page->template->fields->get('mvc')){
 			$mvc->controller = new $controller_class();
 			$mvc->set_action($action);
 			$mvc->set_view_root(ucfirst($page->template->name));
-			$mvc->render();			
+			$rendered = $mvc->render();			
 		}else{
 			echo 'Class ' . $controller_class .' does not exist in ' .$controller_path;
 		}
 	}else{
 		echo 'The file ' . $controller_path . ' does not exist';
 	}
-
+	if(isset($rendered)){
+		echo $rendered;
+	}
 }

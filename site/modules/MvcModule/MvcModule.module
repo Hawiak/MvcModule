@@ -1,30 +1,30 @@
 <?php
 include('Controller.class');
+include('Error.class');
+require_once('Twig/Autoloader.php');
 /*
 	AUTHOR: Harmster
 	WEBSITE: hawiak.nl
-	DATE_MODIFIED: 11/19/2013 (DD/MM/YYYY)
+	DATE_MODIFIED: 11/22/2013 (DD/MM/YYYY)
 */
-
 class MvcModule extends Process implements Module, ConfigurableModule {
 	const PAGE_NAME = 'mvc-module';
 	const PERMISSION_NAME = 'mvc-module';
 	public $action = "";
-
+	public $error = "";
 	public static function getModuleInfo(){
 		return array(
 			'title' => 'MVC',
 			'summary' => __('Module that enables MVC like programming'),
 			'autoload' => true,
-			'version' => 0.1,
+			'version' => 0.23,
 			'author' => 'Harmster',
 			'href' => '<Check later>'
 		);
 	}
-
 	public function init(){
-		
 		Wire::setFuel('mvc', $this);
+		Twig_Autoloader::register();
 		$this->set('table', false); 
         $this->set('thead', ''); 
         $this->set('optionColumns', 0);
@@ -40,6 +40,7 @@ class MvcModule extends Process implements Module, ConfigurableModule {
         else
         	$app_controller = $this->config->paths->root . $this->app_controller_path . '/AppController.class';
 		include($app_controller);
+		$this->error = new MvcError();
 	}
 
 	static public function getModuleConfigInputfields(array $data){
@@ -93,7 +94,6 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 		$form->append($wrapper);
 		return $form;
 	}
-
 	public function ___install(){
 		$page = $this->pages->get('template=admin, name='.self::PAGE_NAME);
 		if(!$page->id){
@@ -256,13 +256,13 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 					);
 					$table->headerRow($header);
 				    foreach($child_methods as $view){
-				    	$view_path = $this->config->paths->root . $this->views_path . "/" . ucfirst($controller_file) . '/' . $view . '.view';
+				    	$view_path = $this->config->paths->root . $this->views_path . "/" . ucfirst($controller_file) . '/' . $view . '.tmpl';
 				    	if(file_exists($view_path)){
 				    		$view_exists = 'View created';
 				    	}else{
 				    		$view_exists = 'View does not exists';
 				    	}
-				    	$table->row(array($view, $view.'.view', $view_exists));
+				    	$table->row(array($view, $view.'.tmpl', $view_exists));
 				    }
 				    $wrapper = new InputfieldWrapper();
 				    $field = new InputfieldMarkup();
@@ -308,7 +308,6 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 				return 'Error, no controller in $_GET';
 			}
 		}
-		
 	}
 	/*
 		Set the action for the controller
@@ -334,40 +333,41 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 	*/
 	private function _set_render_view(){
 		if($this->controller->view === NULL){
-			$this->controller->view = $this->action . '.view';
+			$this->controller->view = $this->action . '.tmpl';
 		}
 	}
-	private function _capture_output($file, $vars, $print = FALSE){
-		ob_start();
-	    if( is_readable($file) && $file ){
-	    	if(!empty($vars)){
-				extract($vars);
+	/*
+		Template engine
+	*/
+	private function _render_file_twig($path, $file, $vars){
+		$this->loader = new Twig_Loader_Filesystem($path);
+		$this->twig = new Twig_Environment($this->loader, array());
+		$processwire_vars = array('user', 'pages', 'page', 'sanitizer', 'files', 'input', 'permissions', 'roles', 'templates', 'session', 'config', 'controller', 'wire');
+		foreach($processwire_vars as $key => $pw_v){
+			if(!isset($vars[$pw_v])){
+				$vars[$pw_v] = $this->$pw_v;
 			}
-	        include($file);
-	    }
-	    else{
-	        return FALSE;
-	    }
-
-	    if( $print == FALSE )
-	        return ob_get_clean();
-	    else
-	        echo ob_get_clean();
+		}
+		$this->twig->addGlobal('this', $this);
+		$template = $this->twig->loadTemplate($file);
+		return $template->render($vars);
 	}
 	/*
 		Includes Layout file, extracts variables etc etc.
 	*/
 	public function render(){
-		
 		if(method_exists($this->controller, $this->action)){
 			$this->controller->{$this->action}();
 			$this->view_body = $this->render_view();
 		}else{
-			echo 'No action available';
+			$this->error->show('Method ' . $this->action . ' not found in  ' . $this->controller, $this->action, $this->controller);
 		}
 		if($this->controller->render_layout === 1){
-			$this->render_layout();
+			$render = $this->render_layout();
+		}else{
+			$render = $this->get_view_body();
 		}
+		return $render;
 	}
 	/*
 		Render the layout
@@ -375,12 +375,9 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 	public function render_layout(){
 		$this->_set_controller_layout();
 		if(file_exists($this->config->paths->root . $this->layouts_path."/".$this->controller->layout)){
-			if(!empty($this->controller->layout_vars)){
-				extract($this->controller->layout_vars);
-			}
-			include($this->config->paths->root . $this->layouts_path."/".$this->controller->layout);
+			return $this->_render_file_twig($this->config->paths->root . $this->layouts_path, $this->controller->layout, $this->controller->layout_vars);
 		}else{
-			echo "Couldn't find the layout.";
+			$this->error->show('Layout <b>' . $this->config->paths->root . $this->layouts_path."/".$this->controller->layout . '</b> not found!', $this->action, $this->controller);
 		}
 	}
 	/*
@@ -389,9 +386,9 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 	public function render_view(){
 		$this->_set_render_view();
 		if(file_exists($this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view)){
-			return $this->_capture_output($this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view, $this->controller->vars);
+			return $this->_render_file_twig($this->config->paths->root . $this->views_path.'/'. $this->view_root, $this->controller->view, $this->controller->vars);
 		}else{
-			echo $this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view . ' nono';
+			$this->error->show('View <b>' .  $this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" .$this->controller->view . '</b> not found!' , $this->action, $this->controller);
 		}
 	}
 	/*
@@ -399,34 +396,32 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 	*/
 	public function render_snippet($snippet=NULL, $vars=array()){
 		if($snippet === NULL){
-			return 'Snippet is NULL';
+			$this->error->show('Snippet is NULL' , $this->action, $this->controller);
 		}
 		if(file_exists($this->config->paths->root . $this->snippets_path .'/'.$snippet)){
-			if(!empty($vars)){
-				extract($vars);
-			}
-			include($this->config->paths->root . $this->snippets_path .'/'.$snippet);
+			return $this->_render_file_twig($this->config->paths->root.$this->snippets_path, $snippet, $vars);
+			//include($this->config->paths->root . $this->snippets_path .'/'.$snippet);
 		}else{
-			return 'No snippet found.';
+			$this->error->show('No snippet found' , $this->action, $this->controller);
 		}
 	}
 	/*
 		Render html headers
 	*/
 	public function render_headers(){
-		if(!empty($this->controller->scripts)){
-			ksort($this->controller->scripts);
-			$html = '';
-			foreach($this->controller->scripts as $key => $src){
-				$html .= '<script type="text/javascript" src="' . $this->config->root . $this->assets_path . '/scripts/' . $src .'"></script>';
-			}
-			ksort($this->controller->styles);
-			foreach($this->controller->styles as $key => $src){
-				$html .= '<link rel="stylesheet" type="text/css" href="' . $this->config->root . $this->assets_path . '/styles/' . $src .'">';
-			}
-			return $html;
-		}else{
-			echo ' nope ';
+		ksort($this->controller->scripts);
+		$html = '';
+		foreach($this->controller->scripts as $key => $src){
+			$html .= '<script type="text/javascript" src="' . $this->config->root . $this->assets_path . '/scripts/' . $src .'"></script>' . "\n";
 		}
+		ksort($this->controller->styles);
+		foreach($this->controller->styles as $key => $src){
+			$html .= '<link rel="stylesheet" type="text/css" href="' . $this->config->root . $this->assets_path . '/styles/' . $src .'"/>'. "\n";
+		}
+		return $html;
+	}
+
+	public function get_view_body(){
+		return $this->view_body;
 	}
 }
