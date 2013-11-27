@@ -455,6 +455,9 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 				$vars[$pw_v] = $this->$pw_v;
 			}
 		}
+		foreach($this->controller->vars as $key=>$val){
+			$vars[$key] = $val;
+		}
 		$twig = new Twig_Environment($loader);
 		$twig->addGlobal('this', $this);
 		echo $twig->render($this->controller->view, $vars);
@@ -502,11 +505,11 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 		ksort($this->controller->scripts);
 		$html = '';
 		foreach($this->controller->scripts as $key => $src){
-			$html .= '<script type="text/javascript" src="' . $this->config->root . $this->assets_path . '/scripts/' . $src .'"></script>' . "\n";
+			$html .= '<script type="text/javascript" src="' . $this->config->urls->root . $this->assets_path . '/scripts/' . $src .'"></script>' . "\n";
 		}
 		ksort($this->controller->styles);
 		foreach($this->controller->styles as $key => $src){
-			$html .= '<link rel="stylesheet" type="text/css" href="' . $this->config->root . $this->assets_path . '/styles/' . $src .'"/>'. "\n";
+			$html .= '<link rel="stylesheet" type="text/css" href=" ' .$this->config->urls->root . $this->assets_path . '/styles/' . $src .'"/>'. "\n";
 		}
 		return $html;
 	}
