@@ -17,7 +17,7 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 			'title' => 'MVC',
 			'summary' => __('Module that enables MVC like programming'),
 			'autoload' => true,
-			'version' => 0.23,
+			'version' => 0.24,
 			'author' => 'Harmster',
 			'href' => '<Check later>'
 		);
@@ -28,6 +28,7 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 		$this->set('table', false); 
         $this->set('thead', ''); 
         $this->set('optionColumns', 0);
+        $this->addHookAfter('TemplateFile::render', $this, 'create_mvc');
         //config propertys
         $this->snippets_path = $this->get('snippets_path');
         $this->controllers_path = $this->get('controllers_path');
@@ -60,7 +61,7 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 		$field = new InputfieldText();
 		$field->label = 'App Controller folder, where is the App Controller located';
 		$field->attr('name+id', 'app_controller_path');
-		if(isset($data['app_controller_path']) ? $field->value = $data['app_controller_path'] : $field->value = "site/templates");
+		if(isset($data['app_controller_path']) ? $field->value = $data['app_controller_path'] : $field->value = "/site/templates");
 		$wrapper->append($field);
 		$form->append($wrapper);
 		$wrapper = new InputfieldWrapper();
@@ -68,33 +69,34 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 		$field = new InputfieldText();
 		$field->label = "Layouts path";
 		$field->attr('name+id', 'layouts_path');
-		if(isset($data['layouts_path']) ? $field->value = $data['layouts_path'] : $field->value = "site/templates/layouts");
+		if(isset($data['layouts_path']) ? $field->value = $data['layouts_path'] : $field->value = "/site/templates/layouts");
 		$wrapper->append($field);
 		$field = new InputfieldText();
 		$field->label = "Controllers path";
 		$field->attr('name+id', 'controllers_path');
-		if(isset($data['controllers_path']) ? $field->value = $data['controllers_path'] : $field->value = "site/templates");
+		if(isset($data['controllers_path']) ? $field->value = $data['controllers_path'] : $field->value = "/site/templates");
 		$wrapper->append($field);
 		$field = new InputfieldText();
 		$field->label = "Snippets path";
 		$field->attr('name+id', 'snippets_path');
-		if(isset($data['snippets_path']) ? $field->value = $data['snippets_path'] : $field->value = "site/templates/snippets");
+		if(isset($data['snippets_path']) ? $field->value = $data['snippets_path'] : $field->value = "/site/templates/snippets");
 		$wrapper->append($field);
 		$field = new InputfieldText();
 		$field->label = "Views path";
 		$field->attr('name+id', 'views_path');
-		if(isset($data['views_path']) ? $field->value = $data['views_path'] : $field->value = "site/templates");
+		if(isset($data['views_path']) ? $field->value = $data['views_path'] : $field->value = "/site/templates");
 		$wrapper->append($field);
 		$form->append($wrapper);
 		$field = new InputfieldText();
 		$field->label = "Assets path";
 		$field->attr('name+id', 'assets_path');
-		if(isset($data['assets_path']) ? $field->value = $data['assets_path'] : $field->value = "site/templates/assets");
+		if(isset($data['assets_path']) ? $field->value = $data['assets_path'] : $field->value = "/site/templates/assets");
 		$wrapper->append($field);
 		$form->append($wrapper);
 		return $form;
 	}
 	public function ___install(){
+		
 		$page = $this->pages->get('template=admin, name='.self::PAGE_NAME);
 		if(!$page->id){
 			$page = new Page();
@@ -112,16 +114,38 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 			$mvc_field->label = 'MVC';
 			$mvc_field->description = 'Checkbox that enables MVC for a page';
 			$mvc_field->type = 'FieldtypeCheckbox';
-			$mvc_field->value = 1;
 			$mvc_field->save();
 		}
-
+		$mvc_register_field = $this->fields->get('mvc_register_page_id');
+		if(!$mvc_register_field->id){
+			$mvc_register_field = new Field();
+			$mvc_register_field->name = 'mvc_register_page_id';
+			$mvc_register_field->label = 'MVC Register Page ID';
+			$mvc_register_field->description = 'Checkbox that enables MVC for a page';
+			$mvc_register_field->type = 'FieldtypePage';
+			$mvc_register_field->save();
+		}
+		if(!$this->templates->mvc_register){
+			$t = new Template();
+			$t->name = 'mvc_register';
+			$fieldgroup = $this->fieldgroups->get($t->name);
+			if(!$fieldgroup->id){
+				$fieldgroup = new Fieldgroup();
+				$fieldgroup->name = $t->name;
+				$fieldgroup->add($this->fields->get('mvc_register_page_id'));
+				$fieldgroup->save();
+			}
+			$t->fieldgroup = $fieldgroup;
+			$t->roles = array($this->roles->get('superuser')->id);
+			$t->save();
+		}
 		$permission = $this->permissions->get(self::PERMISSION_NAME);
 		if(!$permission->id){
 			$permission = new Permission();
 			$permission->name = self::PERMISSION_NAME;
 			$p->title = $this->_('Use the MVC module');
 		}
+		
 	}
 
 	public function ___uninstall(){
@@ -136,6 +160,10 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 		$mvc_field = $this->fields->get('mvc');
 		if($mvc_field->id){
 			//$mvc_field->delete();
+		}
+		$mvc_register = $this->templates->get('mvc_register');
+		if($mvc_register->id){
+			//$mvc_register->delete();
 		}
 	}
 	/*
@@ -309,6 +337,32 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 			}
 		}
 	}
+
+	public function create_mvc(){
+		if($this->page->template->fields->get('mvc')){
+			//MVC is enabled for this template and therefor page;
+			if(isset($this->input->urlSegments[1]) ? $action = $this->input->urlSegments[1] : $action = 'index');
+			$controller = $this->page->template->name;
+			$controller_path = $this->config->paths->root . $this->controllers_path. "/" .$controller.'.php';
+			if(file_exists($controller_path)){
+				$controller_class = ucfirst($controller).'Controller';
+				if(class_exists($controller_class)){
+					$this->register_controller($controller, $this->page->url);
+					$this->controller = new $controller_class();
+					$this->set_action($action);
+					$this->set_view_root(ucfirst($this->page->template->name));
+					$rendered = $this->render();			
+				}else{
+					echo 'Class ' . $controller_class .' does not exist in ' .$controller_path;
+				}
+			}else{
+				echo 'The file ' . $controller_path . ' does not exist';
+			}
+			if(isset($rendered)){
+				echo $rendered;
+			}
+		}
+	}
 	/*
 		Set the action for the controller
 	*/
@@ -334,14 +388,14 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 	private function _set_render_view(){
 		if($this->controller->view === NULL){
 			$this->controller->view = $this->action . '.tmpl';
-		}
+		}	
 	}
 	/*
 		Template engine
 	*/
 	private function _render_file_twig($path, $file, $vars){
 		$this->loader = new Twig_Loader_Filesystem($path);
-		$this->twig = new Twig_Environment($this->loader, array());
+		$this->twig = new Twig_Environment($this->loader, array('debug' => true));
 		$processwire_vars = array('user', 'pages', 'page', 'sanitizer', 'files', 'input', 'permissions', 'roles', 'templates', 'session', 'config', 'controller', 'wire');
 		foreach($processwire_vars as $key => $pw_v){
 			if(!isset($vars[$pw_v])){
@@ -357,17 +411,53 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 	*/
 	public function render(){
 		if(method_exists($this->controller, $this->action)){
-			$this->controller->{$this->action}();
+			//We need to check if the method is used in the controller and not in the parents AppController and/or Controller
+			$f = new ReflectionClass($this->controller);
+			$methods = array();
+			foreach($f->getMethods() as $m){
+				if($m->name == $this->action){
+					if($m->class == $this->controller){
+						$this->controller->{$this->action}();
+					}
+				}
+			}
 			$this->view_body = $this->render_view();
 		}else{
 			$this->error->show('Method ' . $this->action . ' not found in  ' . $this->controller, $this->action, $this->controller);
 		}
-		if($this->controller->render_layout === 1){
-			$render = $this->render_layout();
-		}else{
-			$render = $this->get_view_body();
+		$this->_set_render_view();
+		$this->_set_controller_layout();
+		if(!file_exists($this->config->paths->root . $this->layouts_path."/".$this->controller->layout)){
+			$this->error->show('Layout not found', $this->action, $this->controller);
 		}
-		return $render;
+		if(!file_exists($this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" . $this->controller->view)){
+			$this->error->show('View not found', $this->action, $this->controller);
+		}
+		$layout_content = file_get_contents($this->config->paths->root . $this->layouts_path."/".$this->controller->layout);
+		$view_content = file_get_contents($this->config->paths->root . $this->views_path.'/'. $this->view_root . "/" . $this->controller->view);
+		$bind_content = "{% extends \"layout.tmpl\" %} ";
+		$templates = array();
+		$bind_content .= '{% block view %}' . $view_content . " {% endblock %}";
+		$templates['layout.tmpl'] = $layout_content;
+		
+		foreach($this->controller->snippets as $snippet_name => $snippet){
+			if(!file_exists($this->config->paths->root.$this->snippets_path ."/" . $snippet)){
+				$this->error->show('Snippet not found', $this->action, $this->controller);
+			}
+			$snippet_content = file_get_contents($this->config->paths->root.$this->snippets_path ."/" . $snippet);
+			$bind_content .= "{% block ". $snippet_name . " %}" . $snippet_content . " {% endblock %}";
+		}	
+		$templates[$this->controller->view] = $bind_content;
+		$loader = new Twig_Loader_Array($templates);
+		$processwire_vars = array('user', 'pages', 'page', 'sanitizer', 'files', 'input', 'permissions', 'roles', 'templates', 'session', 'config', 'controller', 'wire');
+		foreach($processwire_vars as $key => $pw_v){
+			if(!isset($vars[$pw_v])){
+				$vars[$pw_v] = $this->$pw_v;
+			}
+		}
+		$twig = new Twig_Environment($loader);
+		$twig->addGlobal('this', $this);
+		echo $twig->render($this->controller->view, $vars);
 	}
 	/*
 		Render the layout
@@ -423,5 +513,35 @@ class MvcModule extends Process implements Module, ConfigurableModule {
 
 	public function get_view_body(){
 		return $this->view_body;
+	}
+
+	/*
+		EXPERIMENTAL FROM HERE ON
+	*/
+
+	/*
+		Register controller, a registered controller has a page with a field that links to the page that is used to be the controller, this will be used as a routing-table like 
+		mechanism
+	*/
+	public function register_controller($controller_name, $page_url){
+		$controller_registry = $this->pages->get("title=$controller_name, template=mvc_register");
+		if($controller_registry->id){
+			//controller has been registered, but is the url still the same?
+			if($controller_registry->mvc_register_page_id->url == $this->page->url){
+				//The url hasnt been changed	
+			}else{
+				//The url has been changed, we need to update the url
+
+			}
+		}else{
+			//Controller hasnt been registered
+			/*$controller_registry = new Page();
+			$controller_registry->template = $this->templates->get('mvc_register');
+			$controller_registry->parent = $this->pages->get("name=" . self::PAGE_NAME);
+			$controller_registry->title = $controller_name;
+			$controller_registry->name = $controller_name;
+			$controller_registry->mvc_register_page_id = $this->pages->get("url=$page_url");
+			$controller_registry->save();*/
+		}
 	}
 }

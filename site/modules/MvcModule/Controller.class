@@ -7,6 +7,7 @@ class Controller extends Wire{
 	public $layout_vars = array();
 	public $scripts = array();
 	public $styles = array();
+	public $snippets = array();
 
 	public function set($var, $val){
 		$this->vars[$var] = $val;
@@ -14,5 +15,10 @@ class Controller extends Wire{
 
 	public function set_layout_var($var, $val){
 		$this->layout_vars[$var] = $val;
+	}
+
+	public function register($controller_name, $page_id){
+		if(!$this->pages->get("template=mvc_register, title=$page_id")->id){
+		}
 	}
 }
